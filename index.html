@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz App — General Knowledge Quiz</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI',system-ui,sans-serif; background:#1e1b4b; color:#eef2ff; min-height:100vh; padding:28px 16px 60px; }
+  .wrap { max-width:620px; margin:0 auto; }
+  h1 { text-align:center; font-size:29px; }
+  h1 span { color:#fbbf24; }
+  .sub { text-align:center; color:#a5b4fc; margin:8px 0 24px; font-size:15px; }
+  .card { background:#312e81; border:1px solid #4338ca; border-radius:16px; padding:24px; }
+  .top { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; font-size:14px; color:#c7d2fe; }
+  .timer { font-weight:800; color:#fbbf24; font-size:16px; }
+  .timer.low { color:#f87171; }
+  .track { background:#1e1b4b; height:10px; border-radius:99px; overflow:hidden; margin-bottom:20px; }
+  .fill { height:100%; background:#fbbf24; border-radius:99px; transition:width .3s; }
+  .q { font-size:20px; font-weight:700; margin-bottom:18px; line-height:1.45; }
+  .opt { display:block; width:100%; text-align:left; background:#1e1b4b; border:1px solid #4338ca; color:#eef2ff; padding:13px 16px; border-radius:10px; margin-bottom:10px; font-size:15.5px; cursor:pointer; transition:border-color .12s, background .12s; }
+  .opt:hover { border-color:#fbbf24; }
+  .opt.correct { background:#065f46; border-color:#34d399; }
+  .opt.wrong { background:#7f1d1d; border-color:#f87171; }
+  .opt:disabled { cursor:default; opacity:.92; }
+  .center { text-align:center; }
+  .score-big { font-size:54px; font-weight:800; color:#fbbf24; }
+  button.main { padding:13px 28px; background:#fbbf24; color:#451a03; border:none; border-radius:10px; font-weight:800; font-size:16px; cursor:pointer; margin-top:16px; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🧠 Quiz <span>App</span></h1>
+  <p class="sub">10 general knowledge questions · 15 seconds each · Good luck!</p>
+
+  <div class="card" id="startCard">
+    <div class="center">
+      <div style="font-size:52px">🏆</div>
+      <p style="margin-top:10px;color:#c7d2fe">Questions about Bangladesh, science, geography and the world. Answer before the timer runs out!</p>
+      <button class="main" onclick="startQuiz()">Start Quiz</button>
+    </div>
+  </div>
+
+  <div class="card hidden" id="quizCard">
+    <div class="top"><span id="progress">Question 1 of 10</span><span class="timer" id="timer">15s</span></div>
+    <div class="track"><div class="fill" id="fill" style="width:0%"></div></div>
+    <div class="q" id="question"></div>
+    <div id="options"></div>
+  </div>
+
+  <div class="card hidden" id="endCard">
+    <div class="center">
+      <div>Your Score</div>
+      <div class="score-big" id="score"></div>
+      <p id="verdict" style="color:#c7d2fe"></p>
+      <button class="main" onclick="startQuiz()">Play Again</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const QUESTIONS = [
+    { q: 'What is the capital of Bangladesh?', options: ['Chattogram', 'Dhaka', 'Khulna', 'Rajshahi'], answer: 1 },
+    { q: 'Which is the longest river in Bangladesh?', options: ['Jamuna', 'Meghna', 'Padma', 'Brahmaputra'], answer: 2 },
+    { q: 'What does "CPU" stand for?', options: ['Central Processing Unit', 'Computer Personal Unit', 'Central Program Utility', 'Core Processing Utility'], answer: 0 },
+    { q: 'Which planet is known as the Red Planet?', options: ['Venus', 'Jupiter', 'Mars', 'Saturn'], answer: 2 },
+    { q: 'In which year did Bangladesh gain independence?', options: ['1947', '1952', '1971', '1975'], answer: 2 },
+    { q: 'What is the chemical symbol for gold?', options: ['Gd', 'Au', 'Ag', 'Go'], answer: 1 },
+    { q: 'How many sides does a hexagon have?', options: ['Five', 'Six', 'Seven', 'Eight'], answer: 1 },
+    { q: 'Which ocean is the largest in the world?', options: ['Atlantic', 'Indian', 'Arctic', 'Pacific'], answer: 3 },
+    { q: 'Who wrote the national anthem of Bangladesh?', options: ['Kazi Nazrul Islam', 'Rabindranath Tagore', 'Jasimuddin', 'Sukanta Bhattacharya'], answer: 1 },
+    { q: 'What is 15% of 200?', options: ['20', '25', '30', '45'], answer: 2 }
+  ];
+  const TIME_PER_Q = 15;
+  let idx = 0, score = 0, timerId = null, timeLeft = TIME_PER_Q, locked = false;
+
+  function startQuiz() {
+    idx = 0; score = 0;
+    document.getElementById('startCard').classList.add('hidden');
+    document.getElementById('endCard').classList.add('hidden');
+    document.getElementById('quizCard').classList.remove('hidden');
+    showQuestion();
+  }
+  function showQuestion() {
+    locked = false;
+    const item = QUESTIONS[idx];
+    document.getElementById('progress').textContent = `Question ${idx + 1} of ${QUESTIONS.length}`;
+    document.getElementById('fill').style.width = (idx / QUESTIONS.length * 100) + '%';
+    document.getElementById('question').textContent = item.q;
+    const box = document.getElementById('options');
+    box.innerHTML = '';
+    item.options.forEach((text, i) => {
+      const b = document.createElement('button');
+      b.className = 'opt';
+      b.textContent = text;
+      b.onclick = () => pick(i, b);
+      box.appendChild(b);
+    });
+    startTimer();
+  }
+  function startTimer() {
+    clearInterval(timerId);
+    timeLeft = TIME_PER_Q;
+    const el = document.getElementById('timer');
+    el.textContent = timeLeft + 's';
+    el.classList.remove('low');
+    timerId = setInterval(() => {
+      timeLeft--;
+      el.textContent = timeLeft + 's';
+      if (timeLeft <= 5) el.classList.add('low');
+      if (timeLeft <= 0) { clearInterval(timerId); reveal(-1); }
+    }, 1000);
+  }
+  function pick(i, btn) {
+    if (locked) return;
+    clearInterval(timerId);
+    reveal(i);
+  }
+  function reveal(chosen) {
+    locked = true;
+    const item = QUESTIONS[idx];
+    const buttons = document.querySelectorAll('.opt');
+    buttons.forEach((b, i) => {
+      b.disabled = true;
+      if (i === item.answer) b.classList.add('correct');
+      else if (i === chosen) b.classList.add('wrong');
+    });
+    if (chosen === item.answer) score++;
+    setTimeout(() => {
+      idx++;
+      if (idx < QUESTIONS.length) showQuestion();
+      else endQuiz();
+    }, 1200);
+  }
+  function endQuiz() {
+    document.getElementById('quizCard').classList.add('hidden');
+    document.getElementById('endCard').classList.remove('hidden');
+    document.getElementById('score').textContent = score + ' / ' + QUESTIONS.length;
+    const v = document.getElementById('verdict');
+    if (score === 10) v.textContent = 'Perfect score! You are a genius 🏆';
+    else if (score >= 7) v.textContent = 'Great job! Very impressive 👏';
+    else if (score >= 4) v.textContent = 'Good try — keep learning! 📚';
+    else v.textContent = 'Don\'t give up — play again and beat your score! 💪';
+  }
+</script>
+</body>
+</html>
